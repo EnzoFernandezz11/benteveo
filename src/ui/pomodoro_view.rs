@@ -1,4 +1,5 @@
 use crate::domain::pomodoro::{Pomodoro, Profile, Stage, TimerState};
+use crate::ui::theme;
 
 pub struct PomodoroResponse {
     pub profile_changed: Option<Profile>,
@@ -24,87 +25,109 @@ pub fn show(
         profile_changed: None,
         action: Action::None,
     };
-    ui.heading("// pomodoro");
-    ui.horizontal(|ui| {
-        for profile in [Profile::Classic, Profile::Deep] {
+    theme::terminal_panel(ui, |ui| {
+        theme::title(ui, "02", "FOCUS CYCLE");
+        ui.horizontal(|ui| {
+            for profile in [Profile::Classic, Profile::Deep] {
+                if ui
+                    .selectable_label(timer.profile() == profile, profile.name().to_uppercase())
+                    .clicked()
+                {
+                    result.profile_changed = Some(profile);
+                }
+            }
             if ui
-                .selectable_label(timer.profile() == profile, profile.name())
+                .selectable_label(
+                    matches!(timer.profile(), Profile::Custom { .. }),
+                    "PERSONAL",
+                )
                 .clicked()
             {
-                result.profile_changed = Some(profile);
-            }
-        }
-        if ui
-            .selectable_label(
-                matches!(timer.profile(), Profile::Custom { .. }),
-                "Personalizado",
-            )
-            .clicked()
-        {
-            result.profile_changed = Profile::custom(*custom_work, *custom_break).ok();
-        }
-    });
-    if matches!(timer.profile(), Profile::Custom { .. }) {
-        ui.horizontal(|ui| {
-            ui.label("trabajo");
-            ui.add(
-                egui::DragValue::new(custom_work)
-                    .range(1..=180)
-                    .suffix(" min"),
-            );
-            ui.label("descanso");
-            ui.add(
-                egui::DragValue::new(custom_break)
-                    .range(1..=180)
-                    .suffix(" min"),
-            );
-            if ui.button("aplicar").clicked() {
                 result.profile_changed = Profile::custom(*custom_work, *custom_break).ok();
             }
         });
-    }
-    ui.add_space(20.0);
-    let seconds = timer.remaining_seconds();
-    let phase = match timer.stage() {
-        Stage::Work => "TRABAJO",
-        Stage::Break => "DESCANSO",
-    };
-    ui.label(egui::RichText::new(phase).strong());
-    ui.heading(format!("{:02}:{:02}", seconds / 60, seconds % 60));
-    ui.label(format!(
-        "sesiones de hoy: {}",
-        timer.completed_work_sessions_today()
-    ));
-    ui.add_space(12.0);
-    ui.horizontal(|ui| match timer.state() {
-        TimerState::Stopped => {
-            if ui.button("▶ iniciar").clicked() {
-                result.action = Action::StartPause;
-            }
+        if matches!(timer.profile(), Profile::Custom { .. }) {
+            ui.horizontal(|ui| {
+                theme::label(ui, "TRABAJO");
+                ui.add(
+                    egui::DragValue::new(custom_work)
+                        .range(1..=180)
+                        .suffix(" min"),
+                );
+                theme::label(ui, "DESCANSO");
+                ui.add(
+                    egui::DragValue::new(custom_break)
+                        .range(1..=180)
+                        .suffix(" min"),
+                );
+                if ui.button("APLICAR").clicked() {
+                    result.profile_changed = Profile::custom(*custom_work, *custom_break).ok();
+                }
+            });
         }
-        TimerState::WorkRunning | TimerState::BreakRunning => {
-            if ui.button("Ⅱ pausar").clicked() {
-                result.action = Action::StartPause;
-            }
-        }
-        TimerState::WorkPaused | TimerState::BreakPaused => {
-            if ui.button("▶ reanudar").clicked() {
-                result.action = Action::Resume;
-            }
-        }
-        TimerState::Finished => {
-            if ui.button("→ siguiente etapa").clicked() {
-                result.action = Action::Advance;
-            }
-        }
-    });
-    ui.horizontal(|ui| {
-        if ui.button("saltar etapa").clicked() {
-            result.action = Action::Skip;
-        }
-        if ui.button("reiniciar").clicked() {
-            result.action = Action::Reset;
-        }
+        ui.add_space(18.0);
+        ui.separator();
+        ui.add_space(12.0);
+        let seconds = timer.remaining_seconds();
+        let phase = match timer.stage() {
+            Stage::Work => "TRABAJO ACTIVO",
+            Stage::Break => "DESCANSO ACTIVO",
+        };
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(egui::RichText::new(phase).color(theme::ACCENT).strong());
+                ui.label(
+                    egui::RichText::new(format!("{:02}:{:02}", seconds / 60, seconds % 60))
+                        .monospace()
+                        .size(54.0)
+                        .strong(),
+                );
+                theme::label(
+                    ui,
+                    format!(
+                        "SESIONES HOY  //  {:02}",
+                        timer.completed_work_sessions_today()
+                    ),
+                );
+            });
+            ui.add_space(28.0);
+            ui.vertical(|ui| {
+                let primary = match timer.state() {
+                    TimerState::Stopped => "▶ INICIAR",
+                    TimerState::WorkRunning | TimerState::BreakRunning => "Ⅱ PAUSAR",
+                    TimerState::WorkPaused | TimerState::BreakPaused => "▶ REANUDAR",
+                    TimerState::Finished => "→ SIGUIENTE",
+                };
+                if ui
+                    .add_sized([160.0, 40.0], egui::Button::new(primary))
+                    .clicked()
+                {
+                    result.action = match timer.state() {
+                        TimerState::Stopped
+                        | TimerState::WorkRunning
+                        | TimerState::BreakRunning => Action::StartPause,
+                        TimerState::WorkPaused | TimerState::BreakPaused => Action::Resume,
+                        TimerState::Finished => Action::Advance,
+                    };
+                }
+                ui.horizontal(|ui| {
+                    if ui.button("SKIP").clicked() {
+                        result.action = Action::Skip;
+                    }
+                    if ui.button("RESET").clicked() {
+                        result.action = Action::Reset;
+                    }
+                });
+            });
+        });
+        ui.add_space(13.0);
+        theme::meter(
+            ui,
+            1.0 - (seconds as f32
+                / (timer.profile().duration(timer.stage()).as_secs().max(1) as f32)),
+            32,
+            theme::SIGNAL,
+        );
     });
     result
 }

@@ -1,4 +1,5 @@
 use crate::services::audio::NoiseKind;
+use crate::ui::theme;
 
 pub struct NoiseResponse {
     pub changed: bool,
@@ -13,37 +14,59 @@ pub fn show(
 ) -> NoiseResponse {
     let mut changed = false;
     let mut play_toggle = false;
-    ui.heading("// ruido de enfoque");
-    ui.add_space(16.0);
-    ui.horizontal(|ui| {
-        for option in NoiseKind::ALL {
+    theme::terminal_panel(ui, |ui| {
+        theme::title(ui, "01", "NOISE ENGINE");
+        theme::label(ui, "GENERADOR CONTINUO / SIN CONEXIÓN");
+        ui.add_space(18.0);
+        ui.horizontal(|ui| {
+            for option in NoiseKind::ALL {
+                let active = *kind == option;
+                let text = if active {
+                    format!("● {}", option.label().to_uppercase())
+                } else {
+                    format!("○ {}", option.label().to_uppercase())
+                };
+                if ui.selectable_label(active, text).clicked() {
+                    *kind = option;
+                    changed = true;
+                }
+            }
+        });
+        ui.add_space(22.0);
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                theme::label(ui, format!("VOLUMEN  /  {volume:03}%"));
+                ui.add_sized(
+                    [275.0, 18.0],
+                    egui::Slider::new(volume, 0..=100).show_value(false),
+                );
+                theme::meter(ui, f32::from(*volume) / 100.0, 24, theme::ACCENT);
+            });
+            ui.add_space(22.0);
             if ui
-                .selectable_label(*kind == option, option.label())
+                .add_sized(
+                    [156.0, 58.0],
+                    egui::Button::new(if playing {
+                        "■  DETENER"
+                    } else {
+                        "▶  INICIAR"
+                    }),
+                )
                 .clicked()
             {
-                *kind = option;
-                changed = true;
+                play_toggle = true;
             }
-        }
+        });
+        ui.add_space(22.0);
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(if playing { "● LIVE" } else { "○ STANDBY" })
+                    .color(if playing { theme::SIGNAL } else { theme::MUTED }),
+            );
+            theme::label(ui, "El audio se mantiene activo al navegar.");
+        });
     });
-    ui.add_space(18.0);
-    ui.label("volumen");
-    changed |= ui
-        .add(egui::Slider::new(volume, 0..=100).suffix("%"))
-        .changed();
-    ui.add_space(18.0);
-    if ui
-        .button(if playing {
-            "■ detener"
-        } else {
-            "▶ reproducir"
-        })
-        .clicked()
-    {
-        play_toggle = true;
-    }
-    ui.add_space(24.0);
-    ui.weak("El sonido continúa al cambiar de pestaña. No se inicia automáticamente al abrir.");
     NoiseResponse {
         changed,
         play_toggle,

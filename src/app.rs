@@ -199,84 +199,107 @@ impl eframe::App for FocusApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.tab, Tab::Noise, "[1] ruido");
-                ui.selectable_value(&mut self.tab, Tab::Pomodoro, "[2] pomodoro");
-                ui.selectable_value(&mut self.tab, Tab::Tasks, "[3] tareas");
-                ui.separator();
-                ui.weak(format!(
-                    "{} {:02}:{:02}",
-                    if matches!(self.timer.stage(), crate::domain::pomodoro::Stage::Work) {
-                        "trabajo"
-                    } else {
-                        "descanso"
-                    },
-                    self.timer.remaining_seconds() / 60,
-                    self.timer.remaining_seconds() % 60
-                ));
+                ui.label(
+                    egui::RichText::new("BENTEVEO")
+                        .color(crate::ui::theme::ACCENT)
+                        .size(20.0)
+                        .strong(),
+                );
+                ui.label(egui::RichText::new("/ FOCUS SYSTEM").color(crate::ui::theme::MUTED));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let remaining = self.timer.remaining_seconds();
+                    ui.label(
+                        egui::RichText::new(format!("{:02}:{:02}", remaining / 60, remaining % 60))
+                            .color(crate::ui::theme::SIGNAL)
+                            .strong(),
+                    );
+                    ui.label(egui::RichText::new("●").color(crate::ui::theme::SIGNAL));
+                });
             });
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.tab, Tab::Noise, "01  NOISE");
+                ui.selectable_value(&mut self.tab, Tab::Pomodoro, "02  FOCUS");
+                ui.selectable_value(&mut self.tab, Tab::Tasks, "03  TASKS");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        egui::RichText::new("CTRL+1 / 2 / 3")
+                            .color(crate::ui::theme::MUTED)
+                            .small(),
+                    );
+                });
+            });
+            ui.add_space(3.0);
         });
-        egui::CentralPanel::default().show(ctx, |ui| match self.tab {
-            Tab::Noise => {
-                let response = crate::ui::noise_view::show(
-                    ui,
-                    &mut self.noise_kind,
-                    &mut self.volume,
-                    self.audio.as_ref().is_some_and(AudioService::is_playing),
-                );
-                if response.changed {
-                    self.update_audio_settings();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.add_space(12.0);
+            match self.tab {
+                Tab::Noise => {
+                    let response = crate::ui::noise_view::show(
+                        ui,
+                        &mut self.noise_kind,
+                        &mut self.volume,
+                        self.audio.as_ref().is_some_and(AudioService::is_playing),
+                    );
+                    if response.changed {
+                        self.update_audio_settings();
+                    }
+                    if response.play_toggle {
+                        self.toggle_audio();
+                    }
                 }
-                if response.play_toggle {
-                    self.toggle_audio();
-                }
-            }
-            Tab::Pomodoro => {
-                let response = crate::ui::pomodoro_view::show(
-                    ui,
-                    &self.timer,
-                    &mut self.custom_work,
-                    &mut self.custom_break,
-                );
-                if let Some(profile) = response.profile_changed {
-                    if let Err(error) = self.timer.set_profile(profile) {
-                        self.notice = Some(format!(
-                            "Reiniciá el temporizador antes de cambiar el perfil: {error}"
-                        ));
-                    } else {
+                Tab::Pomodoro => {
+                    let response = crate::ui::pomodoro_view::show(
+                        ui,
+                        &self.timer,
+                        &mut self.custom_work,
+                        &mut self.custom_break,
+                    );
+                    if let Some(profile) = response.profile_changed {
+                        if let Err(error) = self.timer.set_profile(profile) {
+                            self.notice = Some(format!(
+                                "Reiniciá el temporizador antes de cambiar el perfil: {error}"
+                            ));
+                        } else {
+                            self.save();
+                        }
+                    }
+                    use crate::ui::pomodoro_view::Action;
+                    let event = match response.action {
+                        Action::None => None,
+                        Action::StartPause => {
+                            if self.timer.is_running() {
+                                self.timer.pause().ok()
+                            } else {
+                                self.timer.start().ok()
+                            }
+                        }
+                        Action::Resume => self.timer.resume().ok(),
+                        Action::Skip => Some(self.timer.skip_stage()),
+                        Action::Reset => Some(self.timer.reset()),
+                        Action::Advance => self.timer.advance_stage().ok(),
+                    };
+                    if event.is_some() {
                         self.save();
                     }
                 }
-                use crate::ui::pomodoro_view::Action;
-                let event = match response.action {
-                    Action::None => None,
-                    Action::StartPause => {
-                        if self.timer.is_running() {
-                            self.timer.pause().ok()
-                        } else {
-                            self.timer.start().ok()
-                        }
+                Tab::Tasks => {
+                    let response =
+                        crate::ui::tasks_view::show(ui, &mut self.tasks, &mut self.task_draft);
+                    if response.changed {
+                        self.save();
                     }
-                    Action::Resume => self.timer.resume().ok(),
-                    Action::Skip => Some(self.timer.skip_stage()),
-                    Action::Reset => Some(self.timer.reset()),
-                    Action::Advance => self.timer.advance_stage().ok(),
-                };
-                if event.is_some() {
-                    self.save();
-                }
-            }
-            Tab::Tasks => {
-                let response =
-                    crate::ui::tasks_view::show(ui, &mut self.tasks, &mut self.task_draft);
-                if response.changed {
-                    self.save();
                 }
             }
         });
         if let Some(message) = &self.notice {
             egui::TopBottomPanel::bottom("notice").show(ctx, |ui| {
-                ui.weak(message);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("// STATUS").color(crate::ui::theme::ACCENT));
+                    ui.label(egui::RichText::new(message).color(crate::ui::theme::MUTED));
+                });
             });
         }
     }
