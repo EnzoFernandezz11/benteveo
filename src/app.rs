@@ -202,12 +202,18 @@ impl eframe::App for FocusApp {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("BENTEVEO")
-                        .color(crate::ui::theme::ACCENT)
-                        .size(20.0)
-                        .strong(),
+                    egui::RichText::new(
+                        r" ____  _____ _   _ _____ _______     _______ ___
+| __ )| ____| \ | |_   _| ____\ \   / / ____/ _ \
+|  _ \|  _| |  \| | | | |  _|  \ \ / /|  _|| | | |
+| |_) | |___| |\  | | | | |___  \ V / | |__| |_| |
+|____/|_____|_| \_| |_| |_____|  \_/  |_____\___/",
+                    )
+                    .color(crate::ui::theme::ACCENT)
+                    .monospace()
+                    .size(10.0),
                 );
-                ui.label(egui::RichText::new("/ FOCUS SYSTEM").color(crate::ui::theme::MUTED));
+                ui.label(egui::RichText::new("// FOCUS SYSTEM").color(crate::ui::theme::MUTED));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let remaining = self.timer.remaining_seconds();
                     ui.label(
