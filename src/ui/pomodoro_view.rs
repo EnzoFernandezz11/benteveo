@@ -98,10 +98,9 @@ pub fn show(
                     TimerState::WorkPaused | TimerState::BreakPaused => "▶ REANUDAR",
                     TimerState::Finished => "→ SIGUIENTE",
                 };
-                if ui
-                    .add_sized([160.0, 40.0], egui::Button::new(primary))
-                    .clicked()
-                {
+                let button = egui::Button::new(egui::RichText::new(primary).color(theme::INK))
+                    .fill(theme::ACCENT);
+                if ui.add_sized([160.0, 40.0], button).clicked() {
                     result.action = match timer.state() {
                         TimerState::Stopped
                         | TimerState::WorkRunning

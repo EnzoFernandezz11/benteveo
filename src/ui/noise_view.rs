@@ -43,17 +43,20 @@ pub fn show(
                 theme::meter(ui, f32::from(*volume) / 100.0, 24, theme::ACCENT);
             });
             ui.add_space(22.0);
-            if ui
-                .add_sized(
-                    [156.0, 58.0],
-                    egui::Button::new(if playing {
-                        "■  DETENER"
-                    } else {
-                        "▶  INICIAR"
-                    }),
-                )
-                .clicked()
-            {
+            let button = egui::Button::new(
+                egui::RichText::new(if playing {
+                    "■  DETENER"
+                } else {
+                    "▶  INICIAR"
+                })
+                .color(theme::INK),
+            )
+            .fill(if playing {
+                theme::SIGNAL
+            } else {
+                theme::ACCENT
+            });
+            if ui.add_sized([156.0, 58.0], button).clicked() {
                 play_toggle = true;
             }
         });

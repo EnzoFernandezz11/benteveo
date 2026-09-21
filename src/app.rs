@@ -213,16 +213,23 @@ impl eframe::App for FocusApp {
                     .monospace()
                     .size(10.0),
                 );
-                ui.label(egui::RichText::new("// FOCUS SYSTEM").color(crate::ui::theme::MUTED));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let remaining = self.timer.remaining_seconds();
                     ui.label(
                         egui::RichText::new(format!("{:02}:{:02}", remaining / 60, remaining % 60))
                             .color(crate::ui::theme::SIGNAL)
+                            .size(18.0)
                             .strong(),
                     );
-                    ui.label(egui::RichText::new("●").color(crate::ui::theme::SIGNAL));
+                    ui.label(egui::RichText::new("●  WORK").color(crate::ui::theme::SIGNAL));
                 });
+            });
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("// FOCUS SYSTEM  ·  LOCAL FIRST  ·  v0.1")
+                        .color(crate::ui::theme::MUTED)
+                        .small(),
+                );
             });
             ui.separator();
             ui.horizontal(|ui| {
