@@ -2,8 +2,10 @@
 Type=Application
 Name=Benteveo
 Comment=Ruido, Pomodoro y tareas para enfocarse
-Exec=benteveo
+TryExec=/home/enzo/.local/bin/benteveo
+Exec=/home/enzo/.local/bin/benteveo
 Icon=benteveo-pixel
 Terminal=false
-Categories=Utility;Office;
+StartupNotify=true
+Categories=Utility;
 Keywords=focus;pomodoro;noise;tasks;
