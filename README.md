@@ -1,78 +1,82 @@
 # Benteveo
 
-Una aplicación de enfoque local para Linux. Reúne ruido continuo, un temporizador Pomodoro y una lista de tareas en una ventana liviana, oscura y orientada al teclado.
+<p align="center">
+  <img src="resources/benteveo-pixel.png" width="180" alt="Pixel-art Benteveo bird icon">
+</p>
 
-No requiere cuentas, conexión a Internet ni recopila telemetría.
+A local-first focus app for Linux. It combines continuous noise, a Pomodoro timer, and a task list in a lightweight, dark, keyboard-friendly terminal-inspired window.
 
-## Funciones
+No accounts, Internet connection, or telemetry required.
 
-| Área | Incluye |
+## Features
+
+| Area | Included |
 | --- | --- |
-| Ruido | Blanco, rosa y marrón; volumen regulable; sigue activo al navegar entre pestañas. |
-| Pomodoro | Perfiles Clásico (25/5), Profundo (90/10) y Personalizado (1–180 min); iniciar, pausar, reanudar, saltar y reiniciar. |
-| Tareas | Crear, editar, completar, reordenar, eliminar y limpiar tareas terminadas. |
-| Datos | Guardado automático local, atómico y versionado; recuperación con respaldo de JSON corrupto. |
+| Noise | White, pink, and brown noise; adjustable volume; keeps playing while you move between tabs. |
+| Pomodoro | Classic (25/5), Deep Work (90/10), and Custom (1–180 min) profiles; start, pause, resume, skip, and reset controls. |
+| Tasks | Create, edit, complete, reorder, delete, and clear completed tasks. |
+| Data | Automatic local, atomic, versioned storage with recovery and backup for corrupted JSON files. |
 
-Las etapas Pomodoro terminadas usan una notificación de escritorio cuando el entorno Linux la ofrece. Si el servidor de notificaciones o el dispositivo de audio no están disponibles, la aplicación continúa funcionando y muestra un aviso no bloqueante.
+Completed Pomodoro stages send a desktop notification when supported by the Linux environment. If the notification server or an audio device is unavailable, the app keeps working and shows a non-blocking in-app message.
 
-## Inicio rápido
+## Quick start
 
-Con Rust estable instalado:
+With stable Rust installed:
 
 ```bash
-git clone <URL-DEL-REPOSITORIO> benteveo
+git clone <REPOSITORY-URL> benteveo
 cd benteveo
 cargo run --release
 ```
 
-El binario optimizado queda en `target/release/benteveo`:
+The optimized binary is created at `target/release/benteveo`:
 
 ```bash
 ./target/release/benteveo
 ```
 
-## Requisitos de Linux
+## Linux requirements
 
-Además de Rust estable, se necesitan las bibliotecas de desarrollo para ventana, audio y D-Bus. En Debian/Ubuntu:
+In addition to stable Rust, you need development libraries for windowing, audio, and D-Bus. On Debian/Ubuntu:
 
 ```bash
 sudo apt install build-essential pkg-config libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev libdbus-1-dev
 ```
 
-Para instalar Rust, se recomienda [rustup](https://rustup.rs/):
+Rust is best installed with [rustup](https://rustup.rs/):
 
 ```bash
 rustup toolchain install stable
 ```
 
-## Instalación para tu usuario
+## Install for your user
 
-Después de compilar en modo release:
+After building a release binary:
 
 ```bash
-mkdir -p ~/.local/bin ~/.local/share/applications ~/.local/share/icons/hicolor/scalable/apps
+mkdir -p ~/.local/bin ~/.local/share/applications ~/.local/share/icons/hicolor/256x256/apps
 install -m 755 target/release/benteveo ~/.local/bin/benteveo
 install -m 644 resources/benteveo.desktop ~/.local/share/applications/benteveo.desktop
-install -m 644 resources/benteveo.svg ~/.local/share/icons/hicolor/scalable/apps/benteveo.svg
+install -m 644 resources/benteveo-pixel.png ~/.local/share/icons/hicolor/256x256/apps/benteveo-pixel.png
 ```
 
-Luego podés abrir **Benteveo** desde el lanzador de aplicaciones o ejecutar `benteveo` desde una terminal.
+You can then open **Benteveo** from your application launcher or run `benteveo` in a terminal. The pixel-art great kiskadee icon above is the icon used by the Linux launcher.
 
-## Atajos
+## Keyboard shortcuts
 
-| Atajo | Acción |
+| Shortcut | Action |
 | --- | --- |
-| `Ctrl+1` | Abrir Ruido |
-| `Ctrl+2` | Abrir Pomodoro |
-| `Ctrl+3` | Abrir Tareas |
-| `Ctrl+Q` | Cerrar la aplicación |
-| `Enter` | Crear la tarea escrita en la pestaña Tareas |
+| `Ctrl+1` | Open Noise |
+| `Ctrl+2` | Open Pomodoro |
+| `Ctrl+3` | Open Tasks |
+| `Ctrl+Q` | Quit the app |
+| `Enter` | Add the typed task in the Tasks tab |
 
-## Datos locales
+## Local data
 
-La configuración se guarda automáticamente en el directorio estándar de configuración de Linux —habitualmente `~/.config/benteveo/config.json`. Incluye preferencias, sesiones Pomodoro y tareas. Si el archivo es inválido, Benteveo lo conserva como `config.json.bak` y recupera valores seguros por defecto.
+Configuration is automatically stored in the standard Linux configuration directory—usually `~/.config/benteveo/config.json`. It includes preferences, Pomodoro sessions, and tasks. If the file is invalid, Benteveo keeps it as `config.json.bak` and restores safe defaults.
 
-## Desarrollo y calidad
+## Development and quality
 
 ```bash
 cargo fmt --check
@@ -81,8 +85,8 @@ cargo test --all-targets --all-features
 cargo build --release
 ```
 
-El repositorio incluye una workflow de GitHub Actions que ejecuta estas verificaciones en Linux.
+The repository includes a GitHub Actions workflow that runs these checks on Linux.
 
-## Licencia
+## License
 
 [MIT](LICENSE).
