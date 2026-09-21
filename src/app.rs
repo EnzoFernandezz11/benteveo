@@ -6,9 +6,10 @@ use crate::config::{
 use crate::domain::pomodoro::{Pomodoro, Profile, TimerEvent, TimerState};
 use crate::domain::task::{Task, TaskId, TaskList};
 use crate::services::{
-    audio::{AudioService, NoiseKind},
+    audio::{AudioService, CompletionSound, NoiseKind},
     notifications,
     persistence::Persistence,
+    tray::{TrayAction, TrayService, TrayStatus},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,8 @@ pub struct FocusApp {
     noise_kind: NoiseKind,
     volume: u8,
     audio: Option<AudioService>,
+    completion_sound: Option<CompletionSound>,
+    tray: Option<TrayService>,
     timer: Pomodoro,
     custom_work: u16,
     custom_break: u16,
@@ -66,11 +69,20 @@ impl FocusApp {
                 })
                 .collect(),
         );
+        let tray = match TrayService::new() {
+            Ok(tray) => Some(tray),
+            Err(error) => {
+                eprintln!("El indicador de Benteveo no está disponible: {error}");
+                None
+            }
+        };
         Self {
             tab: Tab::Noise,
             noise_kind: load_noise(config.preferences.noise.kind),
             volume: config.preferences.noise.volume.min(100),
             audio: None,
+            completion_sound: None,
+            tray,
             timer,
             custom_work,
             custom_break,
@@ -171,11 +183,92 @@ impl FocusApp {
             } else {
                 "Descanso terminado"
             };
-            if let Err(error) = notifications::stage_finished("Benteveo", label) {
-                self.notice = Some(format!("{label}. Notificación no disponible: {error}"));
-            } else {
-                self.notice = Some(label.to_owned());
+            let sound_error = match CompletionSound::play_benteveo_call() {
+                Ok(sound) => {
+                    self.completion_sound = Some(sound);
+                    None
+                }
+                Err(error) => Some(error),
+            };
+            let notification_error = notifications::stage_finished("Benteveo", label).err();
+            self.notice = match (sound_error, notification_error) {
+                (None, None) => Some(label.to_owned()),
+                (Some(error), None) => Some(format!("{label}. Sonido no disponible: {error}")),
+                (None, Some(error)) => {
+                    Some(format!("{label}. Notificación no disponible: {error}"))
+                }
+                (Some(sound), Some(notification)) => Some(format!(
+                    "{label}. Sonido no disponible: {sound}. Notificación no disponible: {notification}"
+                )),
+            };
+            self.save();
+        }
+    }
+
+    fn handle_tray_actions(&mut self, ctx: &egui::Context) {
+        let status = self.tray_status();
+        if let Some(tray) = &mut self.tray {
+            tray.update_status(status);
+        }
+        let action = self.tray.as_ref().and_then(TrayService::next_action);
+        match action {
+            Some(TrayAction::ToggleTimer) => self.toggle_timer_from_tray(),
+            Some(TrayAction::Open) => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             }
+            Some(TrayAction::Quit) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            None => {}
+        }
+    }
+
+    fn tray_status(&self) -> TrayStatus {
+        use crate::domain::pomodoro::Stage;
+        let stage = match self.timer.stage() {
+            Stage::Work => "Trabajo",
+            Stage::Break => "Descanso",
+        };
+        let state = match self.timer.state() {
+            TimerState::Stopped => "listo",
+            TimerState::WorkRunning | TimerState::BreakRunning => "en curso",
+            TimerState::WorkPaused | TimerState::BreakPaused => "pausado",
+            TimerState::Finished => "terminado",
+        };
+        let remaining = self.timer.remaining_seconds();
+        let noise = if self.audio.as_ref().is_some_and(AudioService::is_playing) {
+            format!("Ruido: {} · {}%", self.noise_kind.label(), self.volume)
+        } else {
+            "Ruido: apagado".to_owned()
+        };
+        let timer_action = match self.timer.state() {
+            TimerState::WorkRunning | TimerState::BreakRunning => "Pausar Pomodoro",
+            TimerState::WorkPaused | TimerState::BreakPaused => "Reanudar Pomodoro",
+            TimerState::Stopped => "Iniciar Pomodoro",
+            TimerState::Finished => "Iniciar siguiente etapa",
+        };
+        TrayStatus {
+            pomodoro: format!(
+                "Pomodoro: {stage} · {:02}:{:02} · {state}",
+                remaining / 60,
+                remaining % 60
+            ),
+            noise,
+            tasks: format!(
+                "Tareas pendientes: {}",
+                self.tasks.iter().filter(|task| !task.completed).count()
+            ),
+            timer_action: timer_action.to_owned(),
+        }
+    }
+
+    fn toggle_timer_from_tray(&mut self) {
+        let event = match self.timer.state() {
+            TimerState::WorkRunning | TimerState::BreakRunning => self.timer.pause().ok(),
+            TimerState::WorkPaused | TimerState::BreakPaused => self.timer.resume().ok(),
+            TimerState::Stopped => self.timer.start().ok(),
+            TimerState::Finished => self.timer.advance_stage().ok(),
+        };
+        if event.is_some() {
             self.save();
         }
     }
@@ -183,7 +276,24 @@ impl FocusApp {
 
 impl eframe::App for FocusApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(Duration::from_millis(250));
+        let needs_fast_refresh = self.timer.is_running()
+            || self
+                .completion_sound
+                .as_ref()
+                .is_some_and(|sound| !sound.is_finished());
+        ctx.request_repaint_after(Duration::from_millis(if needs_fast_refresh {
+            250
+        } else {
+            1_000
+        }));
+        self.handle_tray_actions(ctx);
+        if self
+            .completion_sound
+            .as_ref()
+            .is_some_and(CompletionSound::is_finished)
+        {
+            self.completion_sound = None;
+        }
         let timer_event = self.timer.tick();
         self.handle_timer_event(timer_event);
         if ctx.input(|input| input.modifiers.ctrl && input.key_pressed(egui::Key::Num1)) {

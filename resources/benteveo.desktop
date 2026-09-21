@@ -5,6 +5,7 @@ Comment=Ruido, Pomodoro y tareas para enfocarse
 TryExec=/home/enzo/.local/bin/benteveo
 Exec=/home/enzo/.local/bin/benteveo
 Icon=benteveo-pixel
+StartupWMClass=benteveo
 Terminal=false
 StartupNotify=true
 Categories=Utility;

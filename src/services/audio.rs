@@ -28,6 +28,34 @@ pub struct AudioService {
     volume: f32,
 }
 
+/// Reproducción corta para avisos del temporizador.
+///
+/// Conserva el stream mientras el sonido está activo para que la llamada pueda
+/// escucharse incluso si el ruido continuo no está encendido.
+pub struct CompletionSound {
+    _stream: OutputStream,
+    sink: Sink,
+}
+
+impl CompletionSound {
+    /// Reproduce una llamada sintética inspirada en el silbido del benteveo.
+    /// No requiere descargar ni incluir una grabación externa.
+    pub fn play_benteveo_call() -> Result<Self, String> {
+        let (stream, handle) = OutputStream::try_default().map_err(|error| error.to_string())?;
+        let sink = Sink::try_new(&handle).map_err(|error| error.to_string())?;
+        sink.set_volume(0.45);
+        sink.append(benteveo_call_source());
+        Ok(Self {
+            _stream: stream,
+            sink,
+        })
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.sink.empty()
+    }
+}
+
 impl AudioService {
     pub fn new(kind: NoiseKind, volume: u8) -> Result<Self, String> {
         let (stream, handle) = OutputStream::try_default().map_err(|error| error.to_string())?;
@@ -107,4 +135,60 @@ fn noise_source(kind: NoiseKind) -> impl Source<Item = f32> + Send {
         samples.extend([value, value]);
     }
     SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite()
+}
+
+/// Una frase ascendente de tres silbidos con una repetición suave.
+///
+/// Se genera como PCM estéreo para mantener el binario autocontenido y evitar
+/// que una alarma o un recurso descargado sea necesario para finalizar un foco.
+fn benteveo_call_source() -> SamplesBuffer<f32> {
+    const SAMPLE_RATE: u32 = 48_000;
+    const PHRASE: &[(f32, f32, u32, u32)] = &[
+        (1_650.0, 2_000.0, 105, 45),
+        (2_050.0, 1_760.0, 120, 55),
+        (2_250.0, 2_850.0, 170, 180),
+        (1_650.0, 2_000.0, 105, 45),
+        (2_050.0, 1_760.0, 120, 55),
+        (2_250.0, 2_850.0, 170, 0),
+    ];
+
+    let mut samples = Vec::new();
+    for &(start_hz, end_hz, length_ms, gap_ms) in PHRASE {
+        let frames = (SAMPLE_RATE as u64 * u64::from(length_ms) / 1_000) as usize;
+        let attack = (SAMPLE_RATE / 125) as usize; // 8 ms
+        let release = (SAMPLE_RATE / 25) as usize; // 40 ms
+        let mut phase = 0.0_f32;
+        for frame in 0..frames {
+            let progress = frame as f32 / frames as f32;
+            let frequency = start_hz + (end_hz - start_hz) * progress;
+            phase += std::f32::consts::TAU * frequency / SAMPLE_RATE as f32;
+            let envelope = if frame < attack {
+                frame as f32 / attack as f32
+            } else if frame + release > frames {
+                (frames - frame) as f32 / release as f32
+            } else {
+                1.0
+            };
+            let waveform =
+                phase.sin() * 0.72 + (phase * 2.0).sin() * 0.20 + (phase * 3.0).sin() * 0.08;
+            let sample = waveform * envelope * 0.32;
+            samples.extend([sample, sample]);
+        }
+        let silent_frames = (SAMPLE_RATE as u64 * u64::from(gap_ms) / 1_000) as usize;
+        samples.extend(std::iter::repeat_n(0.0, silent_frames * 2));
+    }
+    SamplesBuffer::new(2, SAMPLE_RATE, samples)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn benteveo_call_is_stereo_and_finite() {
+        let source = benteveo_call_source();
+        assert_eq!(source.channels(), 2);
+        assert_eq!(source.sample_rate(), 48_000);
+        assert!(source.total_duration().is_some());
+    }
 }

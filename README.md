@@ -19,6 +19,8 @@ No accounts, Internet connection, or telemetry required.
 
 Completed Pomodoro stages send a desktop notification when supported by the Linux environment. If the notification server or an audio device is unavailable, the app keeps working and shows a non-blocking in-app message.
 
+Benteveo also adds a small pixel-art status icon to the system tray, with **Open Benteveo** and **Quit** actions. KDE and other desktops with StatusNotifier support show it natively. On stock GNOME, enable an AppIndicator/KStatusNotifierItem extension first; the desktop environment, not the app, decides its exact position on the panel.
+
 ## Quick start
 
 With stable Rust installed:
