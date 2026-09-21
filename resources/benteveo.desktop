@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Benteveo
+Comment=Ruido, Pomodoro y tareas para enfocarse
+Exec=benteveo
+Icon=benteveo
+Terminal=false
+Categories=Utility;Office;
+Keywords=focus;pomodoro;noise;tasks;
