@@ -69,10 +69,10 @@ impl FocusApp {
                 })
                 .collect(),
         );
-        let tray = match TrayService::new() {
+        let tray = match TrayService::spawn() {
             Ok(tray) => Some(tray),
             Err(error) => {
-                eprintln!("El indicador de Benteveo no está disponible: {error}");
+                eprintln!("No se pudo iniciar el hilo del indicador: {error}");
                 None
             }
         };

@@ -161,12 +161,15 @@ impl TaskList {
         self.tasks.iter_mut().find(|task| task.id == id)
     }
 
-    /// Agrega una tarea al final y devuelve su identificador.
+    /// Agrega una tarea al comienzo y devuelve su identificador.
+    ///
+    /// Así la tarea recién creada queda visible inmediatamente sin que el
+    /// usuario tenga que desplazarse hasta el final de la cola.
     pub fn add(&mut self, text: impl Into<String>) -> TaskId {
-        let position = self.tasks.len();
-        let task = Task::new(text, position);
+        let task = Task::new(text, 0);
         let id = task.id;
-        self.tasks.push(task);
+        self.tasks.insert(0, task);
+        self.normalize_positions();
         id
     }
 
@@ -261,9 +264,9 @@ mod tests {
         let second = list.add("segunda");
 
         assert_ne!(first, second);
-        assert_eq!(texts(&list), vec!["primera", "segunda"]);
-        assert_eq!(list.get(first).map(|task| task.position), Some(0));
-        assert_eq!(list.get(second).map(|task| task.position), Some(1));
+        assert_eq!(texts(&list), vec!["segunda", "primera"]);
+        assert_eq!(list.get(first).map(|task| task.position), Some(1));
+        assert_eq!(list.get(second).map(|task| task.position), Some(0));
         assert!(list.get(first).is_some_and(|task| task.created_at > 0));
     }
 
@@ -293,9 +296,9 @@ mod tests {
         let third = list.add("tres");
 
         assert!(list.delete(second));
-        assert_eq!(texts(&list), vec!["uno", "tres"]);
-        assert_eq!(list.get(first).map(|task| task.position), Some(0));
-        assert_eq!(list.get(third).map(|task| task.position), Some(1));
+        assert_eq!(texts(&list), vec!["tres", "uno"]);
+        assert_eq!(list.get(first).map(|task| task.position), Some(1));
+        assert_eq!(list.get(third).map(|task| task.position), Some(0));
         assert!(!list.delete(second));
     }
 
@@ -307,10 +310,10 @@ mod tests {
         let third = list.add("tres");
 
         assert!(list.reorder(first, 2));
-        assert_eq!(texts(&list), vec!["dos", "tres", "uno"]);
+        assert_eq!(texts(&list), vec!["tres", "dos", "uno"]);
         assert_eq!(list.get(first).map(|task| task.position), Some(2));
         assert!(list.reorder(first, usize::MAX));
-        assert_eq!(texts(&list), vec!["dos", "tres", "uno"]);
+        assert_eq!(texts(&list), vec!["tres", "dos", "uno"]);
         assert!(list.reorder(third, 0));
         assert_eq!(texts(&list), vec!["tres", "dos", "uno"]);
         assert!(!list.reorder(TaskId::from_raw(0), 0));

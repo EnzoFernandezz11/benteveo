@@ -1,5 +1,8 @@
 //! Indicador de bandeja para mantener Benteveo accesible desde el panel.
 
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::time::Duration;
+
 use image::imageops::FilterType;
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
@@ -7,6 +10,13 @@ use tray_icon::{
 };
 
 pub struct TrayService {
+    status_tx: Sender<TrayStatus>,
+    action_rx: Receiver<TrayAction>,
+}
+
+/// Vive por completo en el hilo de la bandeja porque `tray-icon` usa tipos
+/// ligados al hilo donde fueron creados.
+struct TrayBackend {
     _icon: TrayIcon,
     pomodoro: MenuItem,
     noise: MenuItem,
@@ -33,7 +43,35 @@ pub struct TrayStatus {
 }
 
 impl TrayService {
-    pub fn new() -> Result<Self, String> {
+    /// Inicia la bandeja sin bloquear el hilo que dibuja la ventana.
+    pub fn spawn() -> Result<Self, String> {
+        let (status_tx, status_rx) = mpsc::channel();
+        let (action_tx, action_rx) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("benteveo-tray".to_owned())
+            .spawn(move || {
+                if let Err(error) = run_tray(status_rx, action_tx) {
+                    eprintln!("El indicador de Benteveo no está disponible: {error}");
+                }
+            })
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            status_tx,
+            action_rx,
+        })
+    }
+
+    pub fn update_status(&self, status: TrayStatus) {
+        let _ = self.status_tx.send(status);
+    }
+
+    pub fn next_action(&self) -> Option<TrayAction> {
+        self.action_rx.try_recv().ok()
+    }
+}
+
+impl TrayBackend {
+    fn new() -> Result<Self, String> {
         let icon = pixel_icon()?;
         let menu = Menu::new();
         let pomodoro = MenuItem::new("Pomodoro: cargando…", false, None);
@@ -74,7 +112,7 @@ impl TrayService {
         })
     }
 
-    pub fn update_status(&mut self, status: TrayStatus) {
+    fn update_status(&mut self, status: TrayStatus) {
         if self.last_status.as_ref() == Some(&status) {
             return;
         }
@@ -85,7 +123,7 @@ impl TrayService {
         self.last_status = Some(status);
     }
 
-    pub fn next_action(&self) -> Option<TrayAction> {
+    fn next_action(&self) -> Option<TrayAction> {
         while let Ok(event) = MenuEvent::receiver().try_recv() {
             if event.id == self.timer_action.id() {
                 return Some(TrayAction::ToggleTimer);
@@ -99,6 +137,33 @@ impl TrayService {
         }
         None
     }
+}
+
+fn run_tray(status_rx: Receiver<TrayStatus>, action_tx: Sender<TrayAction>) -> Result<(), String> {
+    // Esta creación puede esperar a D-Bus/StatusNotifier en algunos
+    // escritorios. Al ocurrir aquí, nunca congela la ventana ni su cursor.
+    let mut tray = TrayBackend::new()?;
+    loop {
+        match status_rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(mut status) => {
+                // Si la inicialización tardó, solo interesa el estado más
+                // reciente; evita repintar estados viejos uno por uno.
+                for newer in status_rx.try_iter() {
+                    status = newer;
+                }
+                tray.update_status(status);
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+
+        while let Some(action) = tray.next_action() {
+            if action_tx.send(action).is_err() {
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn pixel_icon() -> Result<Icon, String> {

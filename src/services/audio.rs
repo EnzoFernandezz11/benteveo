@@ -82,7 +82,7 @@ impl AudioService {
         }
         let sink = Sink::try_new(&self.handle).map_err(|error| error.to_string())?;
         sink.set_volume(self.volume);
-        sink.append(noise_source(self.kind));
+        sink.append(noise_source(self.kind)?);
         self.sink = Some(sink);
         Ok(())
     }
@@ -118,7 +118,15 @@ fn normalized_volume(volume: u8) -> f32 {
     f32::from(volume.min(100)) / 100.0
 }
 
-fn noise_source(kind: NoiseKind) -> impl Source<Item = f32> + Send {
+fn noise_source(kind: NoiseKind) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
+    if matches!(kind, NoiseKind::White) {
+        return Ok(Box::new(
+            white_noise_source()?
+                .convert_samples::<f32>()
+                .repeat_infinite(),
+        ));
+    }
+
     const SAMPLE_RATE: u32 = 48_000;
     let mut state = 0xA53C_91E7_u32;
     let mut pink = 0.0_f32;
@@ -130,7 +138,7 @@ fn noise_source(kind: NoiseKind) -> impl Source<Item = f32> + Send {
         pink = pink * 0.98 + white * 0.02;
         brown = (brown + white * 0.02).clamp(-1.0, 1.0);
         let value = match kind {
-            NoiseKind::White => white,
+            NoiseKind::White => unreachable!("el ruido blanco usa la grabación embebida"),
             NoiseKind::Pink => pink * 3.5,
             NoiseKind::Brown => brown * 1.8,
         }
@@ -138,7 +146,17 @@ fn noise_source(kind: NoiseKind) -> impl Source<Item = f32> + Send {
             * 0.18;
         samples.extend([value, value]);
     }
-    SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite()
+    Ok(Box::new(
+        SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite(),
+    ))
+}
+
+/// Ruido blanco suave embebido en el binario para que funcione sin conexión.
+fn white_noise_source() -> Result<Decoder<Cursor<&'static [u8]>>, String> {
+    Decoder::new(Cursor::new(
+        include_bytes!("../../themediaguy-soft-soothing-deep-white-noise-378857.mp3").as_slice(),
+    ))
+    .map_err(|error| error.to_string())
 }
 
 fn benteveo_alarm_source() -> Result<Decoder<Cursor<&'static [u8]>>, String> {

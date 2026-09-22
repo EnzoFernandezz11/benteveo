@@ -36,10 +36,12 @@ pub fn show(
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 theme::label(ui, format!("VOLUMEN  /  {volume:03}%"));
-                ui.add_sized(
-                    [275.0, 18.0],
-                    egui::Slider::new(volume, 0..=100).show_value(false),
-                );
+                changed |= ui
+                    .add_sized(
+                        [275.0, 18.0],
+                        egui::Slider::new(volume, 0..=100).show_value(false),
+                    )
+                    .changed();
                 theme::meter(ui, f32::from(*volume) / 100.0, 24, theme::ACCENT);
             });
             ui.add_space(22.0);

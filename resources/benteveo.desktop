@@ -7,6 +7,6 @@ Exec=/home/enzo/.local/bin/benteveo
 Icon=benteveo-pixel
 StartupWMClass=benteveo
 Terminal=false
-StartupNotify=true
+StartupNotify=false
 Categories=Utility;
 Keywords=focus;pomodoro;noise;tasks;
